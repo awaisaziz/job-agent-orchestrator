@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
 
+from app.agents.apply_agent import ApplyAgentInput, run_apply_agent
 from app.agents.job_agent import JobAgentInput, run_job_agent
 from app.agents.match_agent import MatchAgentInput, run_match_agent
 from app.agents.resume_agent import ResumeAgentInput, run_resume_agent
@@ -18,6 +19,7 @@ from app.schemas.pipeline import (
     PipelineStatus,
 )
 from app.schemas.profile import Profile
+from app.db.models.credential_profile import CredentialProfileStatus
 from app.services.llm_gateway.registry import MODEL_REGISTRY
 
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
@@ -80,7 +82,22 @@ def run_demo_pipeline(payload: PipelineRunRequest) -> PipelineRunResult:
         )
         logs.extend(resume_output.logs)
         resume_generated = bool(resume_output.tailored_resume.tailored_resume)
-        status = PipelineStatus.COMPLETED
+
+        credential_profile_id = "cred-demo-1"
+        credential_status = CredentialProfileStatus.ACTIVE
+        apply_output = run_apply_agent(
+            ApplyAgentInput(
+                job_title=target_job.title,
+                company=target_job.company,
+                credential_profile_id=credential_profile_id,
+                credential_status=credential_status,
+                credential_username="demo.user@example.com",
+                credential_secret="enc:demo-ciphertext",
+            )
+        )
+        logs.extend(apply_output.logs)
+        logs.extend(action.detail for action in apply_output.result.logs)
+        status = apply_output.result.status
 
         submitted_at = datetime.now(timezone.utc)
         application_id = f"app-{run_id}"
@@ -92,7 +109,7 @@ def run_demo_pipeline(payload: PipelineRunRequest) -> PipelineRunResult:
             job_id=job_id,
             target_company=target_job.company,
             target_title=target_job.title,
-            credential_profile_id="cred-demo-1",
+            credential_profile_id=credential_profile_id,
             credential_provider="greenhouse",
             credential_account_alias="primary",
             resume_id=f"resume-{run_id}",
