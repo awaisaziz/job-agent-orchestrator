@@ -40,10 +40,11 @@ export type DemoPipelineResponse = {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
-export async function runDemoPipeline(): Promise<DemoPipelineResponse> {
+export async function runDemoPipeline(modelName: string): Promise<DemoPipelineResponse> {
   const response = await fetch(`${API_BASE_URL}/api/v1/pipeline/run-demo`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ model_name: modelName }),
     cache: "no-store",
   });
 

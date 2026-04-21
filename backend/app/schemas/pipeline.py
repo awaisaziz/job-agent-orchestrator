@@ -5,6 +5,8 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.services.llm_gateway.registry import DEFAULT_MODEL_NAME
+
 
 class PipelineStatus(str, Enum):
     """Lifecycle status for pipeline steps and runs."""
@@ -13,6 +15,14 @@ class PipelineStatus(str, Enum):
     PROCESSING = "PROCESSING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
+
+
+class PipelineRunRequest(BaseModel):
+    """Input schema for demo pipeline execution."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    model_name: str = Field(default=DEFAULT_MODEL_NAME)
 
 
 class PipelineRunResult(BaseModel):
@@ -27,4 +37,6 @@ class PipelineRunResult(BaseModel):
     jobs_ingested: int = Field(ge=0)
     matches_found: int = Field(ge=0)
     resume_generated: bool
+    model_name: str
+    llm_provider: str | None = None
     logs: list[str] = Field(default_factory=list)

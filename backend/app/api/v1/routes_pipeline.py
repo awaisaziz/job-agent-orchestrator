@@ -8,16 +8,17 @@ from app.agents.job_agent import JobAgentInput, run_job_agent
 from app.agents.match_agent import MatchAgentInput, run_match_agent
 from app.agents.resume_agent import ResumeAgentInput, run_resume_agent
 from app.schemas.job import JobIn
-from app.schemas.pipeline import PipelineRunResult, PipelineStatus
+from app.schemas.pipeline import PipelineRunRequest, PipelineRunResult, PipelineStatus
 from app.schemas.profile import Profile
+from app.services.llm_gateway.registry import MODEL_REGISTRY
 
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 
 
 @router.post("/run-demo", response_model=PipelineRunResult)
-def run_demo_pipeline() -> PipelineRunResult:
+def run_demo_pipeline(payload: PipelineRunRequest) -> PipelineRunResult:
     started_at = datetime.now(timezone.utc)
-    logs: list[str] = ["pipeline:start demo"]
+    logs: list[str] = [f"pipeline:start demo model={payload.model_name}"]
     status = PipelineStatus.PROCESSING
 
     profile = Profile(
@@ -54,6 +55,7 @@ def run_demo_pipeline() -> PipelineRunResult:
     logs.extend(match_output.logs)
 
     resume_generated = False
+    llm_provider = MODEL_REGISTRY.get(payload.model_name).provider if payload.model_name in MODEL_REGISTRY else None
     if match_output.matches and job_output.normalized_jobs:
         top_match = match_output.matches[0]
         target_job = next(job for job in job_output.normalized_jobs if job.title == top_match.job_title)
@@ -62,6 +64,7 @@ def run_demo_pipeline() -> PipelineRunResult:
                 base_resume="Experienced software engineer with API and platform background.",
                 profile=profile,
                 target_job=target_job,
+                model_name=payload.model_name,
             )
         )
         logs.extend(resume_output.logs)
@@ -79,5 +82,7 @@ def run_demo_pipeline() -> PipelineRunResult:
         jobs_ingested=len(job_output.normalized_jobs),
         matches_found=len(match_output.matches),
         resume_generated=resume_generated,
+        model_name=payload.model_name,
+        llm_provider=llm_provider,
         logs=logs,
     )
