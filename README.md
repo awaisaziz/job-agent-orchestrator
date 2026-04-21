@@ -35,8 +35,14 @@ This command will:
 1. Open `http://localhost:3000` to view the pipeline dashboard.
 2. The UI shows a mock run: ingestion → matching → resume tailoring → application → feedback.
 3. Call `POST http://localhost:8000/api/v1/pipeline/run-demo` to execute the demo pipeline and fetch stage timings, logs, per-job timelines, and `dataset_version` metadata.
-4. (Legacy) `GET http://localhost:8000/api/v1/pipeline/demo` still returns a minimal mock summary.
+4. Call `POST http://localhost:8000/api/v1/pipeline/run-linkedin-demo` to execute the LinkedIn-capable pipeline (LinkedIn job pull + Easy Apply simulation).
+5. (Legacy) `GET http://localhost:8000/api/v1/pipeline/demo` still returns a minimal mock summary.
 
 
 ## Environment
 Copy `.env.example` to `.env` and set values for database, OpenAI, and optional job APIs.
+
+## Extended docs
+- Backend docs: `docs/BACKEND.md`
+- Frontend docs: `docs/FRONTEND.md`
+- Architecture docs: `docs/ARCHITECTURE.md`

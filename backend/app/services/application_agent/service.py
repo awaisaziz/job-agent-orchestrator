@@ -3,8 +3,10 @@
 from dataclasses import dataclass, field
 
 from app.db.models.credential_profile import CredentialProfileStatus
+from app.schemas.job import JobIn
 from app.schemas.pipeline import PipelineStatus
 from app.services.credentials.utility import redact_sensitive_values
+from app.services.linkedin.service import fill_linkedin_easy_apply
 
 
 @dataclass(slots=True)
@@ -28,6 +30,8 @@ def submit_application(
     credential_username: str | None = None,
     credential_secret: str | None = None,
     max_retries: int = 2,
+    platform: str = "generic",
+    applicant_profile: dict[str, str] | None = None,
 ) -> ApplicationAttemptResult:
     """Retry-safe submission interface with stubbed Playwright call for demo."""
 
@@ -42,6 +46,28 @@ def submit_application(
         return ApplicationAttemptResult(status=PipelineStatus.FAILED, attempts=0, logs=logs)
 
     redaction_inputs = [credential_profile_id, credential_username, credential_secret]
+
+    if platform == "linkedin":
+        linkedin_result = fill_linkedin_easy_apply(
+            job=JobIn(
+                source="linkedin",
+                raw_title=job_title,
+                raw_company=company,
+                raw_description="",
+                raw_location="Remote",
+                raw_apply_link="https://www.linkedin.com/jobs",
+            ),
+            applicant_profile=applicant_profile or {},
+        )
+        logs.extend(
+            ApplicationAction(action="linkedin", detail=detail)
+            for detail in linkedin_result.logs
+        )
+        return ApplicationAttemptResult(
+            status=linkedin_result.status,
+            attempts=1,
+            logs=logs,
+        )
     for attempt in range(1, max_retries + 1):
         logs.append(
             ApplicationAction(

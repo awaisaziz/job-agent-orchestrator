@@ -40,6 +40,8 @@ class Settings(BaseSettings):
     email_token_encryption_key: str = Field(default="dev-email-token-key", alias="EMAIL_TOKEN_ENCRYPTION_KEY")
     email_sync_min_interval_seconds: int = Field(default=60, alias="EMAIL_SYNC_MIN_INTERVAL_SECONDS", ge=1)
     email_sync_max_messages: int = Field(default=100, alias="EMAIL_SYNC_MAX_MESSAGES", ge=1, le=500)
+    linkedin_access_token: str | None = Field(default=None, alias="LINKEDIN_ACCESS_TOKEN")
+    linkedin_jobs_api_url: str | None = Field(default=None, alias="LINKEDIN_JOBS_API_URL")
 
     @model_validator(mode="before")
     @classmethod

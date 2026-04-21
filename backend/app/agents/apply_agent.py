@@ -14,6 +14,8 @@ class ApplyAgentInput:
     credential_status: CredentialProfileStatus = CredentialProfileStatus.ACTIVE
     credential_username: str | None = None
     credential_secret: str | None = None
+    platform: str = "generic"
+    applicant_profile: dict[str, str] | None = None
 
 
 @dataclass(slots=True)
@@ -31,6 +33,8 @@ def run_apply_agent(payload: ApplyAgentInput) -> ApplyAgentOutput:
         credential_status=payload.credential_status,
         credential_username=payload.credential_username,
         credential_secret=payload.credential_secret,
+        platform=payload.platform,
+        applicant_profile=payload.applicant_profile,
     )
     logs.append(f"apply_agent:completed attempts={result.attempts} status={result.status.value}")
     return ApplyAgentOutput(result=result, logs=logs)

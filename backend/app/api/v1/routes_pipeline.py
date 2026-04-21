@@ -1,6 +1,7 @@
 """Pipeline orchestration endpoints."""
 
 from datetime import datetime, timezone
+import os
 
 from fastapi import APIRouter, HTTPException
 
@@ -25,6 +26,7 @@ from app.schemas.profile import Profile
 from app.db.models.credential_profile import CredentialProfileStatus
 from app.services.ingestion.pipeline import run_dataset_pipeline
 from app.services.ingestion.repository import persist_normalized_jobs
+from app.services.linkedin.service import fetch_linkedin_jobs
 from app.services.llm_gateway.registry import MODEL_REGISTRY
 
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
@@ -176,6 +178,87 @@ def run_demo_pipeline(payload: PipelineRunRequest) -> PipelineRunResult:
         model_name=payload.model_name,
         llm_provider=llm_provider,
         dataset_version=dataset_version,
+        logs=logs,
+    )
+
+
+@router.post("/run-linkedin-demo", response_model=PipelineRunResult)
+def run_linkedin_demo_pipeline(payload: PipelineRunRequest) -> PipelineRunResult:
+    """Run pipeline with LinkedIn ingestion + Easy Apply simulation."""
+
+    started_at = datetime.now(timezone.utc)
+    run_id = f"linkedin-{int(started_at.timestamp())}"
+    logs: list[str] = [f"pipeline:start linkedin model={payload.model_name}"]
+
+    profile = Profile(
+        user_id=1,
+        full_name="Jane Doe",
+        email="jane@example.com",
+        skills=["python", "fastapi", "sql", "docker", "react"],
+        years_experience=5,
+        target_locations=["Remote", "New York, NY"],
+    )
+    linkedin_jobs = fetch_linkedin_jobs(
+        query="Software Engineer",
+        location="Remote",
+        limit=3,
+        access_token=os.getenv("LINKEDIN_ACCESS_TOKEN"),
+        api_url=os.getenv("LINKEDIN_JOBS_API_URL"),
+    )
+    logs.append(f"pipeline:linkedin_pull jobs={len(linkedin_jobs)}")
+
+    job_output = run_job_agent(JobAgentInput(raw_jobs=linkedin_jobs))
+    logs.extend(job_output.logs)
+
+    match_output = run_match_agent(MatchAgentInput(profile=profile, jobs=job_output.normalized_jobs))
+    logs.extend(match_output.logs)
+
+    status = PipelineStatus.FAILED
+    resume_generated = False
+    llm_provider = MODEL_REGISTRY.get(payload.model_name).provider if payload.model_name in MODEL_REGISTRY else None
+    if match_output.matches and job_output.normalized_jobs:
+        target_job = job_output.normalized_jobs[0]
+        resume_output = run_resume_agent(
+            ResumeAgentInput(
+                base_resume="Experienced software engineer with API and platform background.",
+                profile=profile,
+                target_job=target_job,
+                model_name=payload.model_name,
+            )
+        )
+        logs.extend(resume_output.logs)
+        resume_generated = bool(resume_output.tailored_resume.tailored_resume)
+
+        apply_output = run_apply_agent(
+            ApplyAgentInput(
+                job_title=target_job.title,
+                company=target_job.company,
+                credential_profile_id="cred-linkedin-1",
+                credential_status=CredentialProfileStatus.ACTIVE,
+                platform="linkedin",
+                applicant_profile={
+                    "full_name": profile.full_name,
+                    "email": profile.email,
+                    "phone": "+1-555-0100",
+                    "resume_text": resume_output.tailored_resume.tailored_resume,
+                },
+            )
+        )
+        logs.extend(apply_output.logs)
+        logs.extend(action.detail for action in apply_output.result.logs)
+        status = apply_output.result.status
+
+    return PipelineRunResult(
+        run_id=run_id,
+        status=status,
+        started_at=started_at,
+        finished_at=datetime.now(timezone.utc),
+        jobs_ingested=len(job_output.normalized_jobs),
+        matches_found=len(match_output.matches),
+        resume_generated=resume_generated,
+        model_name=payload.model_name,
+        llm_provider=llm_provider,
+        dataset_version=None,
         logs=logs,
     )
 
