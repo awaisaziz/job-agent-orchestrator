@@ -1,0 +1,1 @@
+Extract candidate skills from the resume and normalize to canonical terms.
