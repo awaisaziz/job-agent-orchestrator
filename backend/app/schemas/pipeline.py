@@ -3,7 +3,7 @@
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.services.llm_gateway.registry import DEFAULT_MODEL_NAME
 
@@ -28,6 +28,8 @@ class ApplicationEventName(str, Enum):
     INTERVIEW_INVITE = "INTERVIEW_INVITE"
     REJECTION = "REJECTION"
     FOLLOW_UP_NEEDED = "FOLLOW_UP_NEEDED"
+    BLOCKED_WAITING_APPROVAL = "BLOCKED_WAITING_APPROVAL"
+    DUPLICATE_BLOCKED = "DUPLICATE_BLOCKED"
 
 
 class PipelineRunRequest(BaseModel):
@@ -36,6 +38,44 @@ class PipelineRunRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     model_name: str = Field(default=DEFAULT_MODEL_NAME)
+    require_human_approval: bool = True
+    approved_by_human: bool = False
+
+    @model_validator(mode="after")
+    def validate_approval(self) -> "PipelineRunRequest":
+        if not self.require_human_approval:
+            return self
+        return self
+
+
+class ResumeVersionRecord(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    resume_id: str
+    version: int = Field(ge=1)
+    created_at: datetime
+    summary: str
+
+
+class ApplicationTrackingItem(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    application_id: str
+    job_title: str
+    company: str
+    status: PipelineStatus
+    ats_score: float = Field(ge=0.0, le=100.0)
+    retries_used: int = Field(ge=0)
+    duplicate_blocked: bool = False
+    waiting_for_human_approval: bool = False
+    created_at: datetime
+
+
+class SkillGapReport(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    matched_skills: list[str] = Field(default_factory=list)
+    missing_skills: list[str] = Field(default_factory=list)
 
 
 class PipelineRunResult(BaseModel):
@@ -54,6 +94,14 @@ class PipelineRunResult(BaseModel):
     llm_provider: str | None = None
     dataset_version: str | None = None
     logs: list[str] = Field(default_factory=list)
+    ats_score: float = Field(default=0.0, ge=0.0, le=100.0)
+    skill_gap: SkillGapReport = Field(default_factory=SkillGapReport)
+    waiting_for_human_approval: bool = False
+    duplicate_prevented: bool = False
+    retries_used: int = Field(default=0, ge=0)
+    tracking_item: ApplicationTrackingItem | None = None
+    resume_versions: list[ResumeVersionRecord] = Field(default_factory=list)
+    email_integration_configured: bool = False
 
 
 class ApplicationAuditEvent(BaseModel):
@@ -98,3 +146,24 @@ class ApplicationAuditList(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     applications: list[ApplicationAuditRecord] = Field(default_factory=list)
+
+
+class ApplicationTrackingList(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    applications: list[ApplicationTrackingItem] = Field(default_factory=list)
+
+
+class ResumeHistoryList(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    resumes: list[ResumeVersionRecord] = Field(default_factory=list)
+
+
+class EmailIntegrationStatus(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    provider: str = "gmail"
+    configured: bool
+    mode: str
+    detail: str

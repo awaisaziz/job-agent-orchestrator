@@ -16,6 +16,7 @@ class ApplyAgentInput:
     credential_secret: str | None = None
     platform: str = "generic"
     applicant_profile: dict[str, str] | None = None
+    fail_until_attempt: int = 0
 
 
 @dataclass(slots=True)
@@ -35,6 +36,7 @@ def run_apply_agent(payload: ApplyAgentInput) -> ApplyAgentOutput:
         credential_secret=payload.credential_secret,
         platform=payload.platform,
         applicant_profile=payload.applicant_profile,
+        fail_until_attempt=payload.fail_until_attempt,
     )
     logs.append(f"apply_agent:completed attempts={result.attempts} status={result.status.value}")
     return ApplyAgentOutput(result=result, logs=logs)

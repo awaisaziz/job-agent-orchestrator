@@ -20,6 +20,7 @@ class ApplicationAttemptResult:
     status: PipelineStatus
     attempts: int
     logs: list[ApplicationAction] = field(default_factory=list)
+    error: str | None = None
 
 
 def submit_application(
@@ -32,6 +33,7 @@ def submit_application(
     max_retries: int = 2,
     platform: str = "generic",
     applicant_profile: dict[str, str] | None = None,
+    fail_until_attempt: int = 0,
 ) -> ApplicationAttemptResult:
     """Retry-safe submission interface with stubbed Playwright call for demo."""
 
@@ -80,16 +82,23 @@ def submit_application(
             )
         )
         logs.append(ApplicationAction(action="playwright_stub", detail="Playwright submit flow skipped in demo mode"))
-        if attempt == 1:
-            logs.append(
-                ApplicationAction(
-                    action="result",
-                    detail=redact_sensitive_values(
-                        f"Simulated success for {job_title} with credential profile {credential_profile_id}",
-                        redaction_inputs,
-                    ),
-                )
+        if attempt <= fail_until_attempt:
+            logs.append(ApplicationAction(action="retry", detail=f"Transient failure on attempt {attempt}, retrying"))
+            continue
+        logs.append(
+            ApplicationAction(
+                action="result",
+                detail=redact_sensitive_values(
+                    f"Simulated success for {job_title} with credential profile {credential_profile_id}",
+                    redaction_inputs,
+                ),
             )
-            return ApplicationAttemptResult(status=PipelineStatus.COMPLETED, attempts=attempt, logs=logs)
+        )
+        return ApplicationAttemptResult(status=PipelineStatus.COMPLETED, attempts=attempt, logs=logs)
     logs.append(ApplicationAction(action="result", detail="All retries exhausted"))
-    return ApplicationAttemptResult(status=PipelineStatus.FAILED, attempts=max_retries, logs=logs)
+    return ApplicationAttemptResult(
+        status=PipelineStatus.FAILED,
+        attempts=max_retries,
+        logs=logs,
+        error=f"exhausted retries after {max_retries} attempts",
+    )

@@ -1,8 +1,9 @@
-export function StatusBadge({ status }: { status: "done" | "running" | "pending" }) {
+export function StatusBadge({ status }: { status: "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED" }) {
   const colors: Record<string, string> = {
-    done: "#16a34a",
-    running: "#eab308",
-    pending: "#6b7280",
+    COMPLETED: "#16a34a",
+    PROCESSING: "#eab308",
+    PENDING: "#6b7280",
+    FAILED: "#dc2626",
   };
 
   return (

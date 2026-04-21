@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, String, func
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -19,6 +19,10 @@ class Application(Base):
     job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), index=True)
     status: Mapped[PipelineStatus] = mapped_column(String(24), default=PipelineStatus.PENDING)
     match_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ats_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    retries_used: Mapped[int] = mapped_column(default=0)
+    waiting_for_human_approval: Mapped[bool] = mapped_column(Boolean, default=False)
+    duplicate_blocked: Mapped[bool] = mapped_column(Boolean, default=False)
     external_reference: Mapped[str | None] = mapped_column(String(255), nullable=True)
     credential_profile_id: Mapped[int | None] = mapped_column(
         ForeignKey("credential_profiles.id", ondelete="SET NULL"), nullable=True, index=True
