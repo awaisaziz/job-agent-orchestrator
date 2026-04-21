@@ -2,22 +2,33 @@
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from app.agents.job_agent import JobAgentInput, run_job_agent
 from app.agents.match_agent import MatchAgentInput, run_match_agent
 from app.agents.resume_agent import ResumeAgentInput, run_resume_agent
 from app.schemas.job import JobIn
-from app.schemas.pipeline import PipelineRunRequest, PipelineRunResult, PipelineStatus
+from app.schemas.pipeline import (
+    ApplicationAuditEvent,
+    ApplicationAuditList,
+    ApplicationAuditRecord,
+    ApplicationEventName,
+    PipelineRunRequest,
+    PipelineRunResult,
+    PipelineStatus,
+)
 from app.schemas.profile import Profile
 from app.services.llm_gateway.registry import MODEL_REGISTRY
 
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 
+_AUDIT_APPLICATIONS: dict[str, ApplicationAuditRecord] = {}
+
 
 @router.post("/run-demo", response_model=PipelineRunResult)
 def run_demo_pipeline(payload: PipelineRunRequest) -> PipelineRunResult:
     started_at = datetime.now(timezone.utc)
+    run_id = f"demo-{int(started_at.timestamp())}"
     logs: list[str] = [f"pipeline:start demo model={payload.model_name}"]
     status = PipelineStatus.PROCESSING
 
@@ -70,12 +81,49 @@ def run_demo_pipeline(payload: PipelineRunRequest) -> PipelineRunResult:
         logs.extend(resume_output.logs)
         resume_generated = bool(resume_output.tailored_resume.tailored_resume)
         status = PipelineStatus.COMPLETED
+
+        submitted_at = datetime.now(timezone.utc)
+        application_id = f"app-{run_id}"
+        job_id = f"job-{abs(hash((target_job.title, target_job.company))) % 10_000_000}"
+
+        _AUDIT_APPLICATIONS[application_id] = ApplicationAuditRecord(
+            application_id=application_id,
+            run_id=run_id,
+            job_id=job_id,
+            target_company=target_job.company,
+            target_title=target_job.title,
+            credential_profile_id="cred-demo-1",
+            credential_provider="greenhouse",
+            credential_account_alias="primary",
+            resume_id=f"resume-{run_id}",
+            resume_version=1,
+            cover_letter_id=f"cover-{run_id}",
+            cover_letter_version=1,
+            generation_provider=llm_provider,
+            generation_model=payload.model_name,
+            submitted_at=submitted_at,
+            external_application_id=f"ext-{run_id}",
+            external_application_url="https://example.com/applications/ext-demo",
+            status=status,
+            events=[
+                ApplicationAuditEvent(
+                    event=ApplicationEventName.ATTEMPTED,
+                    created_at=started_at,
+                    detail="Application automation flow started.",
+                ),
+                ApplicationAuditEvent(
+                    event=ApplicationEventName.SUBMITTED,
+                    created_at=submitted_at,
+                    detail="Application submitted successfully.",
+                ),
+            ],
+        )
     else:
         status = PipelineStatus.FAILED
         logs.append("pipeline:failed no_matches")
 
     return PipelineRunResult(
-        run_id=f"demo-{int(started_at.timestamp())}",
+        run_id=run_id,
         status=status,
         started_at=started_at,
         finished_at=datetime.now(timezone.utc),
@@ -86,3 +134,20 @@ def run_demo_pipeline(payload: PipelineRunRequest) -> PipelineRunResult:
         llm_provider=llm_provider,
         logs=logs,
     )
+
+
+@router.get("/audit/applications", response_model=ApplicationAuditList)
+def list_application_audit_history() -> ApplicationAuditList:
+    """List immutable audit records for all application runs."""
+
+    return ApplicationAuditList(applications=list(_AUDIT_APPLICATIONS.values()))
+
+
+@router.get("/audit/applications/{application_id}", response_model=ApplicationAuditRecord)
+def get_application_audit_history(application_id: str) -> ApplicationAuditRecord:
+    """Get one immutable audit record by application id."""
+
+    record = _AUDIT_APPLICATIONS.get(application_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Application audit record not found")
+    return record

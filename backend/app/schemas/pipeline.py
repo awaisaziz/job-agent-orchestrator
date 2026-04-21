@@ -17,6 +17,15 @@ class PipelineStatus(str, Enum):
     FAILED = "FAILED"
 
 
+class ApplicationEventName(str, Enum):
+    """Audit event types for application lifecycle tracking."""
+
+    ATTEMPTED = "ATTEMPTED"
+    SUBMITTED = "SUBMITTED"
+    FAILED = "FAILED"
+    RETRIED = "RETRIED"
+
+
 class PipelineRunRequest(BaseModel):
     """Input schema for demo pipeline execution."""
 
@@ -40,3 +49,47 @@ class PipelineRunResult(BaseModel):
     model_name: str
     llm_provider: str | None = None
     logs: list[str] = Field(default_factory=list)
+
+
+class ApplicationAuditEvent(BaseModel):
+    """One immutable event entry in the application history."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    event: ApplicationEventName
+    created_at: datetime
+    detail: str | None = None
+
+
+class ApplicationAuditRecord(BaseModel):
+    """Audit trail of a single application run."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    application_id: str
+    run_id: str
+    job_id: str
+    target_company: str
+    target_title: str
+    credential_profile_id: str
+    credential_provider: str
+    credential_account_alias: str
+    resume_id: str
+    resume_version: int
+    cover_letter_id: str | None = None
+    cover_letter_version: int | None = None
+    generation_provider: str | None = None
+    generation_model: str
+    submitted_at: datetime | None = None
+    external_application_id: str | None = None
+    external_application_url: str | None = None
+    status: PipelineStatus
+    events: list[ApplicationAuditEvent] = Field(default_factory=list)
+
+
+class ApplicationAuditList(BaseModel):
+    """Container for listing audit records."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    applications: list[ApplicationAuditRecord] = Field(default_factory=list)
