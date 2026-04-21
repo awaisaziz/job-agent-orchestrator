@@ -38,6 +38,26 @@ This command will:
 4. Call `POST http://localhost:8000/api/v1/pipeline/run-linkedin-demo` to execute the LinkedIn-capable pipeline (LinkedIn job pull + Easy Apply simulation).
 5. (Legacy) `GET http://localhost:8000/api/v1/pipeline/demo` still returns a minimal mock summary.
 
+## End-to-end workflow diagram
+
+```mermaid
+flowchart TD
+    A[User Profile Input] --> B[Job Fetching]
+    B --> C[Job Normalization]
+    C --> D[Matching Engine]
+    D --> E[Resume Tailoring]
+    E --> F[Cover Letter Generation]
+    F --> G[Human Approval]
+    G --> H{Approved?}
+    H -- Yes --> I[Application Submission]
+    H -- No --> J[Edit Resume/Cover Letter]
+    J --> G
+    I --> K[Logging & Event Tracking]
+    K --> L[Analytics Dashboard]
+    L --> M[Feedback Loop]
+    M --> D
+```
+
 
 ## Environment
 Copy `.env.example` to `.env` and set values for database, OpenAI, and optional job APIs.
