@@ -28,5 +28,6 @@ class JobNormalized(BaseModel):
     company: str
     description: str
     skills: list[str] = Field(default_factory=list)
+    entities: list[str] = Field(default_factory=list)
     location: str | None = None
     apply_link: AnyHttpUrl | None = None

@@ -1,0 +1,4 @@
+title,company,location,skills,entities,description,apply_link
+Senior Backend Engineer,Acme Corp,Remote (US),fastapi|python|sql,Build|FastAPI|Python|SQL|Acme Corp,"Build scalable Python and FastAPI services, own SQL data models, and collaborate with product teams.",https://example.com/jobs/backend
+Frontend Engineer (React),Globex,"New York, NY",docker|react|typescript,Docker|Familiarity|Implement|React|TypeScript|Globex,Implement React + TypeScript experiences and work closely with design. Familiarity with Docker is a plus.,https://example.com/jobs/frontend
+Data Platform Engineer,Initech,"Austin, TX",aws|etl|python|sql,AWS|Design|ETL|Python|SQL|Initech,"Design AWS data pipelines with Python, SQL, and ETL orchestration for analytics workloads.",https://example.com/jobs/data-platform

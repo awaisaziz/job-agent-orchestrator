@@ -52,6 +52,7 @@ class PipelineRunResult(BaseModel):
     resume_generated: bool
     model_name: str
     llm_provider: str | None = None
+    dataset_version: str | None = None
     logs: list[str] = Field(default_factory=list)
 
 

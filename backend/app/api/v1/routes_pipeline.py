@@ -8,6 +8,9 @@ from app.agents.apply_agent import ApplyAgentInput, run_apply_agent
 from app.agents.job_agent import JobAgentInput, run_job_agent
 from app.agents.match_agent import MatchAgentInput, run_match_agent
 from app.agents.resume_agent import ResumeAgentInput, run_resume_agent
+from app.db.base import Base
+from app.db.models.user import User
+from app.db.session import SessionLocal, engine
 from app.schemas.job import JobIn
 from app.schemas.pipeline import (
     ApplicationAuditEvent,
@@ -20,6 +23,8 @@ from app.schemas.pipeline import (
 )
 from app.schemas.profile import Profile
 from app.db.models.credential_profile import CredentialProfileStatus
+from app.services.ingestion.pipeline import run_dataset_pipeline
+from app.services.ingestion.repository import persist_normalized_jobs
 from app.services.llm_gateway.registry import MODEL_REGISTRY
 
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
@@ -61,8 +66,29 @@ def run_demo_pipeline(payload: PipelineRunRequest) -> PipelineRunResult:
         ),
     ]
 
+    dataset = run_dataset_pipeline(dataset_name="jobs_demo")
+    dataset_version = dataset.dataset_version
+    logs.append(f"pipeline:dataset version={dataset_version} rows={len(dataset.normalized_jobs)}")
+
     job_output = run_job_agent(JobAgentInput(raw_jobs=raw_jobs))
     logs.extend(job_output.logs)
+
+    Base.metadata.create_all(bind=engine)
+    with SessionLocal() as session:
+        user = session.query(User).filter(User.email == profile.email).one_or_none()
+        if user is None:
+            user = User(email=profile.email, full_name=profile.full_name)
+            session.add(user)
+            session.commit()
+            session.refresh(user)
+
+        persist_normalized_jobs(
+            session,
+            user_id=user.id,
+            dataset_version=dataset_version,
+            jobs=job_output.normalized_jobs,
+        )
+    logs.append(f"pipeline:persisted jobs={len(job_output.normalized_jobs)} dataset_version={dataset_version}")
 
     match_output = run_match_agent(MatchAgentInput(profile=profile, jobs=job_output.normalized_jobs))
     logs.extend(match_output.logs)
@@ -149,6 +175,7 @@ def run_demo_pipeline(payload: PipelineRunRequest) -> PipelineRunResult:
         resume_generated=resume_generated,
         model_name=payload.model_name,
         llm_provider=llm_provider,
+        dataset_version=dataset_version,
         logs=logs,
     )
 

@@ -2,6 +2,10 @@
 
 import math
 
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.db.models.job import Job
 from app.schemas.job import JobNormalized
 from app.schemas.match import MatchResult
 from app.schemas.profile import Profile
@@ -22,6 +26,28 @@ def score_match(profile: Profile, job: JobNormalized) -> MatchResult:
         similarity=round(similarity, 4),
         matched_skills=matched_skills,
     )
+
+
+def load_jobs_for_matching(session: Session, user_id: int, dataset_version: str | None = None) -> list[JobNormalized]:
+    """Load normalized jobs from local DB tables used by matching."""
+
+    query = select(Job).where(Job.user_id == user_id)
+    if dataset_version:
+        query = query.where(Job.dataset_version == dataset_version)
+
+    rows = session.execute(query.order_by(Job.id.desc())).scalars().all()
+    return [
+        JobNormalized(
+            title=row.title,
+            company=row.company,
+            description=row.description,
+            skills=row.skills or [],
+            entities=row.entities or [],
+            location=row.location,
+            apply_link=row.apply_link,
+        )
+        for row in rows
+    ]
 
 
 def _embedding(text: str) -> list[float]:
