@@ -1,1 +1,3 @@
-Extract candidate skills from the resume and normalize to canonical terms.
+Extract candidate skills from resume/profile text.
+Return normalized, canonical skill names grouped as: languages, frameworks, tooling, and domain expertise.
+Do not invent skills that are not explicitly present in the provided input.

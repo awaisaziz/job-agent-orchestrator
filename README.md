@@ -20,4 +20,9 @@ npm run dev
 ### Demo flow (mock data)
 1. Open `http://localhost:3000` to view the pipeline dashboard.
 2. The UI shows a mock run: ingestion → matching → resume tailoring → application → feedback.
-3. Call `GET http://localhost:8000/api/v1/pipeline/demo` to retrieve the same mock pipeline summary from backend.
+3. Call `POST http://localhost:8000/api/v1/pipeline/run-demo` to execute the demo pipeline and fetch stage timings, logs, and per-job timelines.
+4. (Legacy) `GET http://localhost:8000/api/v1/pipeline/demo` still returns a minimal mock summary.
+
+
+## Environment
+Copy `.env.example` to `.env` and set values for database, OpenAI, and optional job APIs.

@@ -1,8 +1,14 @@
-"""Resume schema placeholders."""
+"""Resume tailoring schemas."""
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
-class ResumeSchema(BaseModel):
-    summary: str
-    skills: list[str] = []
+class TailoredResume(BaseModel):
+    """Tailored resume artifact generated from base resume + job context."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    base_resume: str
+    tailored_resume: str
+    truth_preserved: bool
+    notes: list[str]

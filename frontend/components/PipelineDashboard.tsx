@@ -1,13 +1,61 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+import { DemoPipelineResponse, runDemoPipeline } from "../lib/api";
 import { JobTimeline } from "./JobTimeline";
 import { LogsPanel } from "./LogsPanel";
 
 export function PipelineDashboard() {
+  const [data, setData] = useState<DemoPipelineResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const response = await runDemoPipeline();
+        setData(response);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Unknown error");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    void load();
+  }, []);
+
   return (
     <main style={{ padding: 24, fontFamily: "sans-serif" }}>
       <h1>Job Agent Orchestrator</h1>
-      <p>Mock pipeline run for demo purposes.</p>
-      <JobTimeline />
-      <LogsPanel />
+      <p>Demo execution of ingestion, matching, and resume tailoring pipeline.</p>
+
+      {loading && <p>Running demo pipeline…</p>}
+      {error && <p style={{ color: "#dc2626" }}>Failed to run pipeline: {error}</p>}
+
+      {data && (
+        <>
+          <section style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12, marginTop: 16 }}>
+            <MetricCard label="Jobs fetched" value={data.jobs_fetched} />
+            <MetricCard label="Jobs matched" value={data.jobs_matched} />
+            <MetricCard label="Resumes generated" value={data.resumes_generated} />
+            <MetricCard label="Applications sent" value={data.applications_sent} />
+          </section>
+
+          <JobTimeline jobs={data.job_timelines} />
+          <LogsPanel logs={data.logs} />
+        </>
+      )}
     </main>
+  );
+}
+
+function MetricCard({ label, value }: { label: string; value: number }) {
+  return (
+    <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 12 }}>
+      <div style={{ color: "#4b5563", fontSize: 13 }}>{label}</div>
+      <div style={{ fontSize: 28, fontWeight: 700 }}>{value}</div>
+    </div>
   );
 }

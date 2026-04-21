@@ -1,1 +1,3 @@
-Tailor the resume summary and bullet points to the target job description.
+Tailor the resume summary and experience bullets to the target job description.
+Prioritize truthful alignment with provided profile evidence and measurable outcomes.
+NO HALLUCINATION: Do not add companies, projects, technologies, certifications, or achievements that are not in the source materials.
