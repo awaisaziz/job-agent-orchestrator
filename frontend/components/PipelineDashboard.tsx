@@ -17,6 +17,8 @@ export function PipelineDashboard() {
   useEffect(() => {
     async function load() {
       try {
+        setLoading(true);
+        setError(null);
         const response = await runDemoPipeline(selectedModel);
         setData(response);
       } catch (err) {
@@ -58,7 +60,7 @@ export function PipelineDashboard() {
           </section>
 
           <JobTimeline jobs={data.job_timelines} />
-          <LogsPanel logs={data.logs} />
+          <LogsPanel logs={data.logs} modelName={data.model_name ?? selectedModel} providerName={data.llm_provider} />
         </>
       )}
     </main>

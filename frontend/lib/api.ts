@@ -36,9 +36,21 @@ export type DemoPipelineResponse = {
   stage_results: DemoStageResult[];
   job_timelines: DemoTimelineJob[];
   logs: DemoLogEntry[];
+  model_name?: string;
+  llm_provider?: string | null;
 };
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+
+function mapPipelineErrorMessage(rawMessage: string, modelName: string): string {
+  const message = rawMessage.toLowerCase();
+
+  if (message.includes("api_key") && message.includes("not configured")) {
+    return `The selected model (${modelName}) needs a provider API key that is not configured. Add the provider key in backend environment variables and retry.`;
+  }
+
+  return rawMessage;
+}
 
 export async function runDemoPipeline(modelName: string): Promise<DemoPipelineResponse> {
   const response = await fetch(`${API_BASE_URL}/api/v1/pipeline/run-demo`, {
@@ -49,7 +61,18 @@ export async function runDemoPipeline(modelName: string): Promise<DemoPipelineRe
   });
 
   if (!response.ok) {
-    throw new Error(`Pipeline run failed with status ${response.status}`);
+    let errorMessage = `Pipeline run failed with status ${response.status}`;
+
+    try {
+      const errorBody = (await response.json()) as { detail?: string };
+      if (errorBody.detail) {
+        errorMessage = mapPipelineErrorMessage(errorBody.detail, modelName);
+      }
+    } catch {
+      // Ignore JSON parsing issues and keep default error message.
+    }
+
+    throw new Error(errorMessage);
   }
 
   return (await response.json()) as DemoPipelineResponse;
