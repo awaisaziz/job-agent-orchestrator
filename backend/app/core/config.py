@@ -28,6 +28,19 @@ class Settings(BaseSettings):
     llm_default_model: str = Field(default=DEFAULT_MODEL_NAME, alias="LLM_DEFAULT_MODEL")
     llm_enabled_models: list[str] = Field(default_factory=lambda: sorted(MODEL_REGISTRY), alias="LLM_ENABLED_MODELS")
 
+    gmail_readonly_scopes: list[str] = Field(
+        default_factory=lambda: [
+            "https://www.googleapis.com/auth/gmail.readonly",
+            "openid",
+            "email",
+            "profile",
+        ],
+        alias="GMAIL_READONLY_SCOPES",
+    )
+    email_token_encryption_key: str = Field(default="dev-email-token-key", alias="EMAIL_TOKEN_ENCRYPTION_KEY")
+    email_sync_min_interval_seconds: int = Field(default=60, alias="EMAIL_SYNC_MIN_INTERVAL_SECONDS", ge=1)
+    email_sync_max_messages: int = Field(default=100, alias="EMAIL_SYNC_MAX_MESSAGES", ge=1, le=500)
+
     @model_validator(mode="before")
     @classmethod
     def _parse_enabled_models(cls, values: object) -> object:
@@ -36,6 +49,10 @@ class Settings(BaseSettings):
         enabled_models = values.get("LLM_ENABLED_MODELS", values.get("llm_enabled_models"))
         if isinstance(enabled_models, str):
             values["LLM_ENABLED_MODELS"] = [model.strip() for model in enabled_models.split(",") if model.strip()]
+
+        gmail_scopes = values.get("GMAIL_READONLY_SCOPES", values.get("gmail_readonly_scopes"))
+        if isinstance(gmail_scopes, str):
+            values["GMAIL_READONLY_SCOPES"] = [scope.strip() for scope in gmail_scopes.split(",") if scope.strip()]
         return values
 
     @model_validator(mode="after")
