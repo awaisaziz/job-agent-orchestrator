@@ -1,0 +1,21 @@
+datasets:
+  jobs_demo:
+    latest_version: v1.0.0
+    versions:
+      - version: v1.0.0
+        source: data/raw/demo_jobs.jsonl
+        processed_dir: data/processed/v1.0.0
+        schema:
+          fields:
+            - source
+            - raw_title
+            - raw_company
+            - raw_description
+            - raw_location
+            - raw_apply_link
+            - title
+            - company
+            - location
+            - skills
+            - entities
+            - description

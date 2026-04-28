@@ -1,0 +1,122 @@
+"""Application configuration."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Annotated
+
+from pydantic import Field, model_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+from app.services.llm_gateway.registry import DEFAULT_MODEL_NAME, MODEL_REGISTRY
+
+_BACKEND_ROOT = Path(__file__).resolve().parents[2]
+_ENV_FILE = _BACKEND_ROOT / ".env"
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=str(_ENV_FILE), extra="ignore")
+
+    app_name: str = "Job Agent Orchestrator"
+    environment: str = "development"
+
+    openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
+    anthropic_api_key: str | None = Field(default=None, alias="ANTHROPIC_API_KEY")
+    grok_api_key: str | None = Field(default=None, alias="GROK_API_KEY")
+
+    openai_base_url: str | None = Field(default=None, alias="OPENAI_BASE_URL")
+    anthropic_base_url: str | None = Field(default=None, alias="ANTHROPIC_BASE_URL")
+    grok_base_url: str | None = Field(default=None, alias="GROK_BASE_URL")
+
+    llm_timeout_seconds: float = Field(default=30.0, alias="LLM_TIMEOUT_SECONDS", gt=0)
+    llm_max_retries: int = Field(default=1, alias="LLM_MAX_RETRIES", ge=0)
+
+    llm_default_model: str = Field(default=DEFAULT_MODEL_NAME, alias="LLM_DEFAULT_MODEL")
+    llm_enabled_models: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: sorted(MODEL_REGISTRY),
+        alias="LLM_ENABLED_MODELS",
+    )
+
+    gmail_readonly_scopes: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: [
+            "https://www.googleapis.com/auth/gmail.readonly",
+            "openid",
+            "email",
+            "profile",
+        ],
+        alias="GMAIL_READONLY_SCOPES",
+    )
+    email_token_encryption_key: str = Field(default="dev-email-token-key", alias="EMAIL_TOKEN_ENCRYPTION_KEY")
+    email_sync_min_interval_seconds: int = Field(default=60, alias="EMAIL_SYNC_MIN_INTERVAL_SECONDS", ge=1)
+    email_sync_max_messages: int = Field(default=100, alias="EMAIL_SYNC_MAX_MESSAGES", ge=1, le=500)
+    linkedin_access_token: str | None = Field(default=None, alias="LINKEDIN_ACCESS_TOKEN")
+    linkedin_jobs_api_url: str | None = Field(default=None, alias="LINKEDIN_JOBS_API_URL")
+
+    # JSearch (RapidAPI) — real job data
+    jsearch_api_key: str | None = Field(default=None, alias="JSEARCH_API_KEY")
+    jsearch_api_host: str = Field(default="jsearch.p.rapidapi.com", alias="JSEARCH_API_HOST")
+    job_search_country: str = Field(default="us,ca", alias="JOB_SEARCH_COUNTRY")
+    job_search_num_pages: int = Field(default=3, alias="JOB_SEARCH_NUM_PAGES", ge=1, le=10)
+
+    # Resend — all outgoing email (user notifications + HR application emails)
+    # Free tier: 3,000 emails/month | https://resend.com/api-keys
+    resend_api_key: str | None = Field(default=None, alias="RESEND_API_KEY")
+    resend_from_email: str = Field(default="Job Agent <onboarding@resend.dev>", alias="RESEND_FROM_EMAIL")
+
+    # Auto-apply screenshots directory
+    auto_apply_screenshots_dir: str = Field(default="storage/screenshots", alias="AUTO_APPLY_SCREENSHOTS_DIR")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _parse_enabled_models(cls, values: object) -> object:
+        if not isinstance(values, dict):
+            return values
+        enabled_models = values.get("LLM_ENABLED_MODELS", values.get("llm_enabled_models"))
+        if isinstance(enabled_models, str):
+            values["LLM_ENABLED_MODELS"] = [model.strip() for model in enabled_models.split(",") if model.strip()]
+
+        gmail_scopes = values.get("GMAIL_READONLY_SCOPES", values.get("gmail_readonly_scopes"))
+        if isinstance(gmail_scopes, str):
+            values["GMAIL_READONLY_SCOPES"] = [scope.strip() for scope in gmail_scopes.split(",") if scope.strip()]
+        return values
+
+    @model_validator(mode="after")
+    def _validate_model_configuration(self) -> "Settings":
+        provider_keys: dict[str, str | None] = {
+            "openai": self.openai_api_key,
+            "anthropic": self.anthropic_api_key,
+            "grok": self.grok_api_key,
+        }
+
+        requested_models = list(dict.fromkeys(self.llm_enabled_models))
+        unknown_models = sorted(set(requested_models) - set(MODEL_REGISTRY))
+        if unknown_models:
+            raise ValueError(f"LLM_ENABLED_MODELS contains unknown model(s): {', '.join(unknown_models)}")
+
+        if self.llm_default_model not in MODEL_REGISTRY:
+            raise ValueError(
+                f"LLM_DEFAULT_MODEL '{self.llm_default_model}' is unknown. "
+                f"Known models: {', '.join(sorted(MODEL_REGISTRY))}"
+            )
+
+        if self.llm_default_model not in requested_models:
+            requested_models.append(self.llm_default_model)
+
+        available_models = [
+            model_name
+            for model_name in requested_models
+            if provider_keys.get(MODEL_REGISTRY[model_name].provider)
+        ]
+
+        if self.llm_default_model not in available_models:
+            provider = MODEL_REGISTRY[self.llm_default_model].provider
+            raise ValueError(
+                f"LLM_DEFAULT_MODEL '{self.llm_default_model}' requires {provider.upper()}_API_KEY to be configured"
+            )
+
+        self.llm_enabled_models = available_models
+
+        return self
+
+
+settings = Settings()
