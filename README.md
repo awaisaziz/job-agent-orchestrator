@@ -14,55 +14,93 @@ An AI-powered job application pipeline that searches for real jobs, tailors your
 
 ---
 
-## Quick Start
+## Run it manually
 
-### 1. Clone and configure
+You need **two terminals** — one for the backend API, one for the frontend.
+The app runs with **zero API keys** out of the box (see [API keys](#api-keys--which-ones-matter) to unlock live features).
 
-```bash
-git clone <repo-url>
-cd job-agent-orchestrator
-```
+### One-time setup
 
-Copy the example env file:
+**Backend** (from the repo root):
 
 ```bash
-cp backend/.env.example backend/.env
+cd backend
+python -m venv .venv
+
+# Activate the virtual environment:
+.venv\Scripts\activate         # Windows (PowerShell / CMD)
+source .venv/bin/activate      # macOS / Linux
+
+pip install -r requirements.txt
+playwright install chromium    # only needed for AUTO_APPLY_MODE=live
+
+# Create your env file (safe defaults; every key is optional):
+copy .env.example .env         # Windows
+cp   .env.example .env         # macOS / Linux
 ```
 
-**All keys are optional.** With **zero keys** the app already runs end-to-end and
-does a **real web search** for jobs across free public job boards (Remotive,
-Arbeitnow, RemoteOK) — no API key required. Resume tailoring falls back to a
-deterministic (non-LLM) output and applications are recorded locally. Add keys to
-`backend/.env` to turn on live AI features, then restart the backend:
+**Frontend** (from the repo root, in a second terminal):
 
-```env
-# Live resume tailoring — set at least ONE (empty = deterministic fallback).
-# Dropping in ONLY OpenAI or Grok works even with the Anthropic default below —
-# the app auto-selects a matching model from whichever key you provide.
-OPENAI_API_KEY=sk-...
-GROK_API_KEY=xai-...
-ANTHROPIC_API_KEY=sk-ant-...
-
-# Default model shown in the UI. Auto-overridden to match your configured key.
-LLM_DEFAULT_MODEL=claude-3-5-sonnet
-
-# OPTIONAL: JSearch (Google for Jobs) for precise location filtering. Empty =
-# free keyless web search across public job boards (the default).
-JSEARCH_API_KEY=...                  # https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch
-
-# Email notifications + HR email applications. Empty = notifications skipped.
-RESEND_API_KEY=re_xxxxxxxxxx         # https://resend.com/api-keys
-
-# simulate = record applications locally (default, safe). live = real Playwright
-# auto-apply (email + simple forms; ATS/login/CAPTCHA pages are skipped).
-AUTO_APPLY_MODE=simulate
+```bash
+cd frontend
+npm install
 ```
 
-The landing page shows a **Demo mode / Live mode** banner: job search is always
-live; the banner reflects whether AI resume tailoring and the other features are
-active based on the keys you set.
+### Every run
 
-### Job search & applying
+**Terminal 1 — backend:**
+
+```bash
+cd backend
+.venv\Scripts\activate         # Windows  (source .venv/bin/activate on macOS/Linux)
+uvicorn app.main:app --reload --port 8000
+```
+
+Backend → **http://localhost:8000**  ·  Interactive API docs → **http://localhost:8000/docs**
+
+**Terminal 2 — frontend:**
+
+```bash
+cd frontend
+npm run dev
+```
+
+App → **http://localhost:3000**
+
+> **After editing `backend/.env`, restart the backend** for changes to take effect.
+> If you get `address already in use` on port 8000, an old server is still running —
+> stop it, or start on another port with `--port 8001` (then set
+> `NEXT_PUBLIC_API_BASE_URL=http://localhost:8001` for the frontend).
+
+---
+
+## API keys — which ones matter
+
+Copy `backend/.env.example` to `backend/.env` and fill in **only what you need**.
+The app is fully usable with **no keys** (real web-searched jobs + deterministic
+resume tailoring + locally-recorded applications). Each key below unlocks a live
+feature:
+
+| Key | Priority | What it unlocks | Get it |
+|---|---|---|---|
+| `OPENAI_API_KEY` **or** `GROK_API_KEY` **or** `ANTHROPIC_API_KEY` | **Most important** | **Live AI resume tailoring.** Set any **one**. Without it, tailoring uses a deterministic (non-LLM) fallback. | [OpenAI](https://platform.openai.com/api-keys) · [xAI / Grok](https://console.x.ai) · [Anthropic](https://console.anthropic.com) |
+| `RESEND_API_KEY` | Recommended | **Email notifications** (application summary emailed to you) and **HR email applications** in live apply mode. Without it, email is skipped. | [resend.com/api-keys](https://resend.com/api-keys) |
+| `JSEARCH_API_KEY` | Optional | **Google-for-Jobs listings** with precise location/country filtering. Without it, the app web-searches free public boards (Remotive, Arbeitnow, RemoteOK). | [RapidAPI JSearch](https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch) |
+
+**Two settings (not keys) control behavior:**
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `LLM_DEFAULT_MODEL` | `claude-3-5-sonnet` | Model shown in the UI. **You usually don't need to change this** — if it names a provider you didn't key, the app auto-selects a working model from whichever key you set (so dropping in *only* OpenAI or Grok just works). Options: `gpt-4o-mini`, `gpt-4.1-mini`, `grok-3-mini`, `grok-3`, `claude-3-5-sonnet`, `claude-3-7-sonnet`. |
+| `AUTO_APPLY_MODE` | `simulate` | `simulate` records applications locally (safe default). `live` performs real Playwright auto-apply: emails HR for email-apply pages and fills simple forms; ATS/login/CAPTCHA pages are skipped. |
+
+> **Fastest path to full functionality:** set **one** LLM key (OpenAI *or* Grok) plus
+> `RESEND_API_KEY`, leave everything else at its default, and restart the backend.
+
+The landing page shows a **Demo mode / Live mode** banner reflecting exactly what's
+active based on your keys. Job search is always live.
+
+### What works with no key vs. with keys
 
 | Capability | No key | With key |
 |---|---|---|
@@ -70,49 +108,13 @@ active based on the keys you set.
 | **Resume tailoring** | Deterministic, truth-preserving | Live LLM via OpenAI / Grok / Anthropic |
 | **Applying** | Recorded locally (`AUTO_APPLY_MODE=simulate`) | Real Playwright auto-apply (`AUTO_APPLY_MODE=live`): emails HR for email-apply pages, fills simple forms; ATS/login/CAPTCHA pages are safely skipped |
 
-### 2. Backend
-
-```bash
-cd backend
-
-# Create and activate virtual environment (first time only)
-python -m venv .venv
-
-# Windows
-.venv\Scripts\activate
-# macOS / Linux
-source .venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Install Playwright browser (required for auto-apply form filling)
-playwright install chromium
-
-# Start the API server
-uvicorn app.main:app --reload --port 8000
-```
-
-The backend runs at **http://localhost:8000**  
-Interactive API docs: **http://localhost:8000/docs**
-
-### 3. Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-The app runs at **http://localhost:3000**
-
 ---
 
 ## How to Use
 
 1. **Open** `http://localhost:3000`
 2. **Fill in** your name, email, phone, location (US, Canada, Europe, or Middle East), target job title, and upload your resume
-3. **Search** — live JSearch listings when a key is set, otherwise region-aware demo jobs
+3. **Search** — real jobs from a live web search across public boards (or JSearch/Google for Jobs when `JSEARCH_API_KEY` is set)
 4. **Review** matched jobs — each card shows a URL verification badge (✓ Verified / 🔒 Login required)
 5. **Select** the jobs you want to apply to (or click "Select all")
 6. **Prepare → Tailor → Approve → Submit** using the workspace controls
