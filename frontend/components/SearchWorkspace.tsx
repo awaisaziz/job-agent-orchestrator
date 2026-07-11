@@ -74,6 +74,11 @@ export function SearchWorkspace({ searchId }: WorkspaceProps) {
     });
   }, [workspace, sourceFilter, statusFilter]);
 
+  const availableSources = useMemo(
+    () => (workspace ? Array.from(new Set(workspace.results.map((item) => item.source))).sort() : []),
+    [workspace],
+  );
+
   const selectedApplications = useMemo(() => {
     if (!workspace) {
       return [];
@@ -102,6 +107,9 @@ export function SearchWorkspace({ searchId }: WorkspaceProps) {
   }
 
   function selectAllResults() {
+    if (!workspace) {
+      return;
+    }
     setSelectedResultIds(workspace.results.map((item) => item.result_id));
   }
 
@@ -123,15 +131,20 @@ export function SearchWorkspace({ searchId }: WorkspaceProps) {
             <div className="eyebrow">Search workspace</div>
             <h1>{workspace.position} opportunities, matched and queued.</h1>
             <p className="hero-copy">
-              Review real job listings pulled from JSearch API, select the roles you want, then drive
-              them through tailoring, approval, and submission. All links are verified.
+              {frontendConfig?.job_search_mode === "jsearch"
+                ? "Review real job listings pulled from JSearch (Google for Jobs), select the roles you want, then drive them through tailoring, approval, and submission. All links are verified."
+                : "Review real jobs found by searching public job boards (Remotive, Arbeitnow, RemoteOK), select the roles you want, then drive them through tailoring, approval, and apply."}
             </p>
             <div className="hero-points">
               <span className="pill">Profile: {workspace.profile.full_name}</span>
               <span className="pill">Jobs found: {workspace.results.length}</span>
               <span className="pill">Queued: {workspace.applications.length}</span>
               <span className="pill">Email: {workspace.profile.email}</span>
+              {workspace.profile.phone ? <span className="pill">Phone: {workspace.profile.phone}</span> : null}
               <span className="pill">Default model: {frontendConfig?.default_model ?? "Loading..."}</span>
+              {frontendConfig ? (
+                <span className="pill">{frontendConfig.job_search_mode === "jsearch" ? "JSearch" : "Web search"}</span>
+              ) : null}
             </div>
           </div>
 
@@ -143,10 +156,11 @@ export function SearchWorkspace({ searchId }: WorkspaceProps) {
                 <span>Source filter</span>
                 <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}>
                   <option value="all">All sources</option>
-                  <option value="jsearch">JSearch (Google Jobs)</option>
-                  <option value="linkedin">LinkedIn</option>
-                  <option value="indeed">Indeed</option>
-                  <option value="company_site">Company site</option>
+                  {availableSources.map((source) => (
+                    <option key={source} value={source}>
+                      {formatSourceLabel(source)}
+                    </option>
+                  ))}
                 </select>
               </label>
               <label className="field">
@@ -263,6 +277,7 @@ export function SearchWorkspace({ searchId }: WorkspaceProps) {
               <h3 className="card-title">{workspace.profile.full_name}</h3>
               <div className="card-meta">
                 <span>{workspace.profile.email}</span>
+                {workspace.profile.phone ? <span>{workspace.profile.phone}</span> : null}
                 <span>{workspace.profile.base_resume.source_filename ?? "resume upload"}</span>
               </div>
               <p className="muted">{workspace.profile.parsed_summary}</p>
@@ -332,6 +347,20 @@ export function SearchWorkspace({ searchId }: WorkspaceProps) {
   );
 }
 
+const SOURCE_LABELS: Record<string, string> = {
+  jsearch: "JSearch (Google Jobs)",
+  remotive: "Remotive",
+  arbeitnow: "Arbeitnow",
+  remoteok: "RemoteOK",
+  linkedin: "LinkedIn",
+  indeed: "Indeed",
+  company_site: "Company site",
+};
+
+function formatSourceLabel(source: string): string {
+  return SOURCE_LABELS[source] ?? source.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function MetricCard({ label, value, subtext }: { label: string; value: number; subtext: string }) {
   return (
     <div className="metric-card">
@@ -360,7 +389,7 @@ function JobCard({
         <span>Select</span>
       </label>
       <div className="inline-meta">
-        <span className="status-chip">{item.source.replace("_", " ")}</span>
+        <span className="status-chip">{formatSourceLabel(item.source)}</span>
         <span className={`status-chip status-${item.status}`}>{item.status.replace("_", " ")}</span>
       </div>
       <h3 className="card-title">{item.title}</h3>
@@ -397,7 +426,7 @@ function ApplicationCard({ item, selected }: { item: ApplicationQueueItem; selec
           <h3 className="card-title">{item.title}</h3>
           <div className="card-meta">
             <span>{item.company}</span>
-            <span>{item.source.replace("_", " ")}</span>
+            <span>{formatSourceLabel(item.source)}</span>
             <span>{item.updated_at ? new Date(item.updated_at).toLocaleString() : "Pending"}</span>
           </div>
         </div>

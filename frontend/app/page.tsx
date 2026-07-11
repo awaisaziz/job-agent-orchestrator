@@ -5,16 +5,26 @@ import type { ChangeEvent, FormEvent } from "react";
 import { useEffect, useState, useTransition } from "react";
 
 import { fetchFrontendConfig, intakeProfile, matchJobs, searchJobs } from "../lib/api";
+import type { FrontendConfigResponse } from "../lib/api";
 
-const LOCATION_OPTIONS = [
-  "All locations",
-  "Remote",
-  "New York, NY",
-  "San Francisco, CA",
-  "Seattle, WA",
-  "Austin, TX",
-  "Boston, MA",
-  "Toronto, ON",
+const LOCATION_GROUPS: { region: string; options: string[] }[] = [
+  { region: "Anywhere", options: ["All locations", "Remote"] },
+  {
+    region: "United States",
+    options: ["United States", "New York, NY", "San Francisco, CA", "Seattle, WA", "Austin, TX", "Boston, MA"],
+  },
+  {
+    region: "Canada",
+    options: ["Canada", "Toronto, ON", "Vancouver, BC", "Montreal, QC", "Ottawa, ON"],
+  },
+  {
+    region: "Europe",
+    options: ["Europe", "London, UK", "Berlin, DE", "Amsterdam, NL", "Dublin, IE", "Paris, FR"],
+  },
+  {
+    region: "Middle East",
+    options: ["Middle East", "Dubai, UAE", "Abu Dhabi, UAE", "Riyadh, SA", "Doha, QA"],
+  },
 ];
 
 export default function HomePage() {
@@ -23,19 +33,21 @@ export default function HomePage() {
   const [location, setLocation] = useState("All locations");
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
   const [resumeFileName, setResumeFileName] = useState("");
   const [resumeText, setResumeText] = useState("");
-  const [defaultModel, setDefaultModel] = useState("Loading...");
+  const [config, setConfig] = useState<FrontendConfigResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  const defaultModel = config?.default_model ?? "Loading...";
 
   useEffect(() => {
     void (async () => {
       try {
-        const config = await fetchFrontendConfig();
-        setDefaultModel(config.default_model);
+        setConfig(await fetchFrontendConfig());
       } catch {
-        setDefaultModel("Unavailable");
+        setConfig(null);
       }
     })();
   }, []);
@@ -64,6 +76,7 @@ export default function HomePage() {
           const intake = await intakeProfile({
             email,
             full_name: fullName || undefined,
+            phone: phone || undefined,
             location: location === "All locations" ? undefined : location,
             resume_filename: resumeFileName || "resume.txt",
             resume_text: resumeText,
@@ -102,6 +115,22 @@ export default function HomePage() {
               <span className="pill">Approval-first application flow</span>
               <span className="pill">Default model: {defaultModel}</span>
             </div>
+            {config ? (
+              <div className={`mode-banner ${config.llm_live ? "mode-live" : "mode-demo"}`}>
+                <strong>{config.llm_live ? "● Live mode" : "● Demo mode"}</strong>
+                <span>
+                  Jobs: {config.job_search_mode === "jsearch" ? "live (JSearch)" : "live web search"} · Tailoring:{" "}
+                  {config.llm_live ? `live (${config.default_model})` : "deterministic"} · Apply: {config.auto_apply_mode} · Email:{" "}
+                  {config.email_live ? "on" : "off"}
+                </span>
+                {!config.llm_live ? (
+                  <span className="mode-hint">
+                    Job search is live. Add an OpenAI, Grok, or Anthropic key to backend/.env and restart the backend for AI
+                    resume tailoring.
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           <aside className="control-card landing-card">
@@ -116,10 +145,14 @@ export default function HomePage() {
                 <label className="field">
                   <span>Preferred location</span>
                   <select value={location} onChange={(event) => setLocation(event.target.value)}>
-                    {LOCATION_OPTIONS.map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
+                    {LOCATION_GROUPS.map((group) => (
+                      <optgroup key={group.region} label={group.region}>
+                        {group.options.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </optgroup>
                     ))}
                   </select>
                 </label>
@@ -130,6 +163,10 @@ export default function HomePage() {
                 <label className="field">
                   <span>Full name</span>
                   <input value={fullName} onChange={(event) => setFullName(event.target.value)} placeholder="Optional" />
+                </label>
+                <label className="field">
+                  <span>Phone</span>
+                  <input type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="+1 555 010 0100" />
                 </label>
               </div>
 

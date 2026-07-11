@@ -82,6 +82,7 @@ export type ProfileSummary = {
   user_id: number;
   full_name: string;
   email: string;
+  phone?: string | null;
   skills: string[];
   target_locations: string[];
   base_resume: ResumeArtifact;
@@ -91,6 +92,7 @@ export type ProfileSummary = {
 export type ProfileIntakeRequest = {
   email: string;
   full_name?: string;
+  phone?: string;
   location?: string;
   resume_filename: string;
   resume_text: string;
@@ -213,6 +215,11 @@ export type FrontendConfigResponse = {
   default_model: string;
   enabled_models: string[];
   environment: string;
+  job_search_live: boolean;
+  job_search_mode: string; // "jsearch" | "web"
+  llm_live: boolean;
+  email_live: boolean;
+  auto_apply_mode: string;
 };
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";

@@ -7,6 +7,7 @@ __pycache__/
 # Environment
 .env
 .env.*
+!.env.example
 venv/
 ENV/
 env/
@@ -114,6 +115,7 @@ yarn.lock
 build/
 .next/
 out/
+*.tsbuildinfo
 .tmp/
 .cache/
 public/

@@ -13,6 +13,20 @@ from app.services.llm_gateway.registry import DEFAULT_MODEL_NAME, MODEL_REGISTRY
 _BACKEND_ROOT = Path(__file__).resolve().parents[2]
 _ENV_FILE = _BACKEND_ROOT / ".env"
 
+# Preference order used to auto-pick a default model when the configured
+# LLM_DEFAULT_MODEL has no API key but another provider does. Cheapest/fastest
+# models first so a dropped-in key "just works" affordably.
+_AUTO_DEFAULT_ORDER = ["gpt-4o-mini", "gpt-4.1-mini", "grok-3-mini", "grok-3", "claude-3-5-sonnet", "claude-3-7-sonnet"]
+
+
+def _first_available_model(provider_keys: dict[str, str | None]) -> str | None:
+    """First model (in preference order) whose provider has a configured key."""
+    for name in _AUTO_DEFAULT_ORDER:
+        config = MODEL_REGISTRY.get(name)
+        if config is not None and provider_keys.get(config.provider):
+            return name
+    return None
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=str(_ENV_FILE), extra="ignore")
@@ -66,6 +80,21 @@ class Settings(BaseSettings):
     # Auto-apply screenshots directory
     auto_apply_screenshots_dir: str = Field(default="storage/screenshots", alias="AUTO_APPLY_SCREENSHOTS_DIR")
 
+    # Auto-apply mode: "simulate" records applications locally without touching external
+    # sites (safe default, works with zero external services); "live" uses the real
+    # Playwright/email auto-apply pipeline.
+    auto_apply_mode: str = Field(default="simulate", alias="AUTO_APPLY_MODE")
+
+    @property
+    def llm_live_mode(self) -> bool:
+        """True when at least one LLM provider key is configured (live tailoring)."""
+        return bool(self.openai_api_key or self.anthropic_api_key or self.grok_api_key)
+
+    @property
+    def job_search_mode(self) -> str:
+        """'jsearch' when a JSearch key is set, else 'web' (keyless public search)."""
+        return "jsearch" if self.jsearch_api_key else "web"
+
     @model_validator(mode="before")
     @classmethod
     def _parse_enabled_models(cls, values: object) -> object:
@@ -102,6 +131,14 @@ class Settings(BaseSettings):
         if self.llm_default_model not in requested_models:
             requested_models.append(self.llm_default_model)
 
+        # Demo mode: no provider keys configured at all. The app still boots and runs
+        # end-to-end using deterministic (non-LLM) resume tailoring. The configured
+        # default model name is kept so the UI can display it; add a provider key to
+        # .env to switch that same model to live LLM calls.
+        if not any(provider_keys.values()):
+            self.llm_enabled_models = [self.llm_default_model]
+            return self
+
         available_models = [
             model_name
             for model_name in requested_models
@@ -109,10 +146,26 @@ class Settings(BaseSettings):
         ]
 
         if self.llm_default_model not in available_models:
-            provider = MODEL_REGISTRY[self.llm_default_model].provider
-            raise ValueError(
-                f"LLM_DEFAULT_MODEL '{self.llm_default_model}' requires {provider.upper()}_API_KEY to be configured"
+            # The configured default's provider key isn't set, but another
+            # provider IS configured. Auto-select a working default so dropping in
+            # only OPENAI_API_KEY or GROK_API_KEY works without also editing
+            # LLM_DEFAULT_MODEL.
+            fallback = _first_available_model(provider_keys)
+            if fallback is None:
+                provider = MODEL_REGISTRY[self.llm_default_model].provider
+                raise ValueError(
+                    f"LLM_DEFAULT_MODEL '{self.llm_default_model}' requires {provider.upper()}_API_KEY to be configured"
+                )
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "LLM_DEFAULT_MODEL '%s' has no matching API key; using '%s' from a configured provider instead.",
+                self.llm_default_model,
+                fallback,
             )
+            self.llm_default_model = fallback
+            if fallback not in available_models:
+                available_models.append(fallback)
 
         self.llm_enabled_models = available_models
 

@@ -1,7 +1,9 @@
-"""Real job search service using JSearch API with variant expansion.
+"""Job search service.
 
-Replaces the previous mock/deterministic adapters with live API data.
-Falls back to a clear error if JSEARCH_API_KEY is not configured.
+Uses the JSearch API (RapidAPI) for live job data when ``JSEARCH_API_KEY`` is
+configured. When no key is present the service falls back to a deterministic,
+region-aware mock generator so the whole pipeline runs end-to-end out of the box
+(demo mode). Add a JSearch key to ``.env`` to switch to real listings.
 """
 
 from __future__ import annotations
@@ -10,6 +12,7 @@ from dataclasses import dataclass
 import hashlib
 import logging
 import re
+from urllib.parse import quote_plus
 
 logger = logging.getLogger(__name__)
 
@@ -29,18 +32,39 @@ class SearchCandidate:
 
 
 def search_jobs(*, position: str, location: str | None) -> list[SearchCandidate]:
-    """Search for real jobs using JSearch API with variant expansion.
+    """Search for jobs.
 
-    Raises RuntimeError if JSEARCH_API_KEY is not configured.
+    Priority:
+      1. JSearch API (Google for Jobs) when ``JSEARCH_API_KEY`` is configured.
+      2. Real keyless **web search** across free public job boards (Remotive,
+         Arbeitnow, RemoteOK) — works with no API key.
+      3. Deterministic region-aware demo jobs (offline fallback only).
     """
     from app.core.config import settings
-    from app.services.job_search.jsearch_adapter import jsearch_search, parse_jsearch_results
 
-    if not settings.jsearch_api_key:
-        raise RuntimeError(
-            "JSEARCH_API_KEY is required for job search. "
-            "Sign up for a free key at https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch"
-        )
+    if settings.jsearch_api_key:
+        return _search_jobs_live(position=position, location=location)
+
+    # No JSearch key → genuinely search the web for real jobs (no key required).
+    try:
+        from app.services.job_search.web_search_adapter import web_search_jobs
+
+        web_results = web_search_jobs(position=position, location=location)
+    except Exception:
+        logger.exception("Web job search failed — falling back to demo jobs")
+        web_results = []
+
+    if web_results:
+        return web_results
+
+    logger.info("Web job search returned no results — using region-aware demo jobs")
+    return generate_mock_jobs(position=position, location=location)
+
+
+def _search_jobs_live(*, position: str, location: str | None) -> list[SearchCandidate]:
+    """Search for real jobs using JSearch API with variant expansion."""
+    from app.core.config import settings
+    from app.services.job_search.jsearch_adapter import jsearch_search, parse_jsearch_results
 
     normalized_location = (location or "").strip()
     countries = [c.strip() for c in settings.job_search_country.split(",") if c.strip()]
@@ -166,3 +190,132 @@ def _job_key(title: str, company: str, apply_url: str) -> str:
 
 def _slugify(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-") or "role"
+
+
+# ── Demo mode: deterministic, region-aware mock job generator ─────────────────
+
+# Each region maps to (cities, employers). Cities and employers are combined with
+# the requested title + variants to produce realistic-looking demo listings.
+_REGION_DATA: dict[str, tuple[list[str], list[str]]] = {
+    "canada": (
+        ["Toronto, ON", "Vancouver, BC", "Montreal, QC", "Ottawa, ON", "Remote (Canada)"],
+        ["Shopify", "Wealthsimple", "Cohere", "Faire", "Clio", "Hootsuite", "Ada", "1Password"],
+    ),
+    "us": (
+        ["San Francisco, CA", "New York, NY", "Seattle, WA", "Austin, TX", "Boston, MA", "Remote (US)"],
+        ["Stripe", "Databricks", "Notion", "Cloudflare", "Plaid", "Airbnb", "Figma", "Ramp"],
+    ),
+    "europe": (
+        ["London, UK", "Berlin, DE", "Amsterdam, NL", "Dublin, IE", "Paris, FR", "Remote (Europe)"],
+        ["Revolut", "Spotify", "Adyen", "Wise", "Booking.com", "Datadog EU", "SAP", "Klarna"],
+    ),
+    "middle east": (
+        ["Dubai, UAE", "Abu Dhabi, UAE", "Riyadh, SA", "Doha, QA", "Remote (Middle East)"],
+        ["Careem", "Talabat", "Noon", "Tabby", "Property Finder", "Chalhoub Group", "Aramco Digital", "Kitopi"],
+    ),
+}
+
+_SKILL_PROFILES: dict[str, list[str]] = {
+    "backend": ["Python", "FastAPI", "PostgreSQL", "Docker", "AWS", "Kubernetes", "REST APIs"],
+    "frontend": ["React", "TypeScript", "Next.js", "CSS", "Testing", "Accessibility"],
+    "full stack": ["React", "TypeScript", "Node", "PostgreSQL", "Docker", "AWS"],
+    "data": ["Python", "SQL", "Airflow", "Spark", "dbt", "Snowflake", "ETL"],
+    "ai": ["Python", "PyTorch", "LLM", "LangChain", "RAG", "Machine Learning", "OpenAI"],
+    "ml": ["Python", "PyTorch", "TensorFlow", "Machine Learning", "MLOps", "Kubernetes"],
+    "devops": ["Kubernetes", "Docker", "Terraform", "AWS", "CI/CD", "Prometheus"],
+    "mobile": ["Swift", "Kotlin", "React Native", "REST APIs", "CI/CD"],
+    "product": ["Roadmapping", "Analytics", "SQL", "A/B Testing", "Stakeholder Management"],
+    "design": ["Figma", "Prototyping", "Design Systems", "User Research", "Accessibility"],
+}
+
+
+def detect_region(location: str | None) -> str:
+    """Map a free-text location to one of the supported demo regions."""
+    text = (location or "").lower()
+    if not text or "all" in text:
+        return "us"
+    if any(k in text for k in ["remote"]):
+        # Remote without a region hint → default to US-centric remote roles.
+        pass
+    canada = ["canada", "toronto", "vancouver", "montreal", "ottawa", "ontario", " on", " bc", " qc"]
+    europe = ["europe", "london", "berlin", "amsterdam", "dublin", "paris", "uk", "germany", "netherlands", "ireland", "france", "madrid", "spain"]
+    middle_east = ["middle east", "dubai", "abu dhabi", "riyadh", "doha", "uae", "saudi", "qatar", "kuwait", "bahrain", "oman"]
+    us = ["united states", "usa", "us", "new york", "san francisco", "seattle", "austin", "boston", "california", "texas"]
+    for keyword in middle_east:
+        if keyword in text:
+            return "middle east"
+    for keyword in europe:
+        if keyword in text:
+            return "europe"
+    for keyword in canada:
+        if keyword in text:
+            return "canada"
+    for keyword in us:
+        if keyword in text:
+            return "us"
+    return "us"
+
+
+def _skill_profile_for(position: str) -> list[str]:
+    lowered = position.lower()
+    for key, skills in _SKILL_PROFILES.items():
+        if key in lowered:
+            return skills
+    return ["Communication", "Problem Solving", "Git", "Agile", "Collaboration"]
+
+
+def generate_mock_jobs(*, position: str, location: str | None) -> list[SearchCandidate]:
+    """Produce deterministic, realistic demo jobs for the given role and region.
+
+    Used when no JSEARCH_API_KEY is configured so the full pipeline is demoable
+    offline. Apply URLs point to real Google Jobs searches, so "Open listing"
+    works and links are genuinely reachable.
+    """
+    canonical = _canonical_title(position)
+    variants = _search_variants(position)[:3] or [canonical]
+    region = detect_region(location)
+    cities, employers = _REGION_DATA[region]
+    base_skills = _skill_profile_for(position)
+    sources = ["linkedin", "indeed", "company_site"]
+
+    candidates: list[SearchCandidate] = []
+    count = min(len(employers), 8)
+    for index in range(count):
+        title = variants[index % len(variants)]
+        company = employers[index]
+        city = cities[index % len(cities)]
+        source = sources[index % len(sources)]
+        # Rotate the skill emphasis a little per card for variety.
+        skills = base_skills[: 4 + (index % 3)]
+        seniority = ["Senior ", "", "Staff ", "", "Lead ", "", "Junior ", ""][index % 8]
+        full_title = f"{seniority}{title}".strip()
+        snippet = (
+            f"{company} is hiring a {full_title} in {city}. "
+            f"Work with {', '.join(skills[:3])} on production systems."
+        )
+        description = (
+            f"{company} is looking for a {full_title} to join the team in {city}.\n\n"
+            f"You will build and ship features using {', '.join(skills)}. "
+            "This is a demo listing generated locally because no JSEARCH_API_KEY is set — "
+            "add a key to .env to pull live postings.\n\n"
+            f"Requirements: experience with {', '.join(skills[:3])}; strong collaboration and communication."
+        )
+        query = quote_plus(f"{company} {full_title} careers apply {city}")
+        apply_url = f"https://www.google.com/search?q={query}&ibp=htl;jobs"
+        source_url = f"https://www.google.com/search?q={query}"
+        candidates.append(
+            SearchCandidate(
+                source=source,
+                title=full_title,
+                company=company,
+                snippet=snippet,
+                description=description,
+                location=city,
+                apply_url=apply_url,
+                source_url=source_url,
+                skills=skills,
+                metadata={"provider": source, "mock": True, "region": region},
+            )
+        )
+    logger.info("Generated %d demo jobs for position=%r region=%s", len(candidates), position, region)
+    return candidates

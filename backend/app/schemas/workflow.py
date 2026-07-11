@@ -40,6 +40,7 @@ class ProfileSummary(BaseModel):
     user_id: int
     full_name: str
     email: EmailStr
+    phone: str | None = None
     skills: list[str] = Field(default_factory=list)
     target_locations: list[str] = Field(default_factory=list)
     base_resume: ResumeArtifact
@@ -51,6 +52,7 @@ class ProfileIntakeRequest(BaseModel):
 
     email: EmailStr
     full_name: str | None = None
+    phone: str | None = None
     location: str | None = None
     resume_filename: str
     resume_text: str = Field(min_length=1)

@@ -61,15 +61,18 @@ class WorkflowService:
         resume_text: str,
         location: str | None,
         full_name: str | None,
+        phone: str | None = None,
     ) -> IntakeResult:
         user = session.scalar(select(User).where(User.email == email))
         parsed = parse_resume_text(resume_text=resume_text, email=email, full_name=full_name)
         if user is None:
-            user = User(email=email, full_name=parsed.full_name)
+            user = User(email=email, full_name=parsed.full_name, phone=phone)
             session.add(user)
             session.flush()
         else:
             user.full_name = parsed.full_name
+            if phone:
+                user.phone = phone
 
         resume = Resume(
             user_id=user.id,
@@ -86,6 +89,7 @@ class WorkflowService:
                 user_id=user.id,
                 full_name=user.full_name,
                 email=user.email,
+                phone=user.phone,
                 skills=parsed.skills,
                 target_locations=[location] if location else [],
                 base_resume=self._resume_artifact(resume),
@@ -100,20 +104,31 @@ class WorkflowService:
 
         agent_output = run_job_search_agent(JobSearchAgentInput(position=position, location=location))
 
-        # Verify URLs in batch
-        from app.services.job_search.url_verifier import verify_urls
-        urls = [c.apply_url for c in agent_output.results if c.apply_url]
-        url_results = verify_urls(urls, timeout=5.0)
+        # In demo mode (no JSearch key) candidates carry mock apply URLs that point to
+        # real Google Jobs searches — treat them as verified and skip the network check.
+        from app.core.config import settings
+        live_mode = bool(settings.jsearch_api_key)
+
+        url_results: dict[str, object] = {}
+        if live_mode:
+            from app.services.job_search.url_verifier import verify_urls
+            urls = [c.apply_url for c in agent_output.results if c.apply_url]
+            url_results = verify_urls(urls, timeout=5.0)
 
         for candidate in agent_output.results:
-            url_result = url_results.get(candidate.apply_url)
-            url_verified = url_result.status in {"verified", "redirect"} if url_result else False
-            url_status = url_result.status if url_result else None
-            final_url = url_result.final_url if url_result else None
+            if live_mode:
+                url_result = url_results.get(candidate.apply_url)
+                url_verified = url_result.status in {"verified", "redirect"} if url_result else False
+                url_status = url_result.status if url_result else None
+                final_url = url_result.final_url if url_result else None
 
-            # Skip dead URLs — don't store them
-            if url_result and url_result.status == "dead":
-                continue
+                # Skip dead URLs — don't store them
+                if url_result and url_result.status == "dead":
+                    continue
+            else:
+                url_verified = True
+                url_status = "verified"
+                final_url = candidate.apply_url
 
             session.add(
                 SearchResult(
@@ -327,6 +342,40 @@ class WorkflowService:
             profile = self._load_profile(session=session, user_id=application.user_id)
             resume_path = tailored_resume.artifact_path if tailored_resume else None
 
+            # Simulate mode (default): record the application locally with a full audit
+            # trail and notification, without driving any external site. Set
+            # AUTO_APPLY_MODE=live to use the real Playwright/email auto-apply pipeline.
+            from app.core.config import settings
+
+            if settings.auto_apply_mode.lower() != "live":
+                application.status = WorkflowStatus.APPLIED.value
+                application.retries_used = 0
+                application.submitted_at = datetime.now(timezone.utc)
+                application.external_application_url = result.apply_url
+                result.status = WorkflowStatus.APPLIED.value
+                detail = (
+                    "Simulated application recorded locally (AUTO_APPLY_MODE=simulate). "
+                    "No external submission was made — set AUTO_APPLY_MODE=live to auto-submit."
+                )
+                self._append_event(
+                    session=session,
+                    application_id=application.id,
+                    event_type=ApplicationEventType.SUBMITTED,
+                    detail=detail,
+                )
+                responses.append(
+                    {
+                        "application_id": application.id,
+                        "status": WorkflowStatus.APPLIED,
+                        "attempted_actions": [detail],
+                        "failure_reason": None,
+                    }
+                )
+                notification_items.append(
+                    (result.title, result.company, result.apply_url or "", "applied", application.ats_score, None)
+                )
+                continue
+
             submission = submit_application(
                 job_title=result.title,
                 company=result.company,
@@ -334,7 +383,7 @@ class WorkflowService:
                 applicant_profile={
                     "full_name": profile.full_name,
                     "email": profile.email,
-                    "phone": "+1-555-0100",
+                    "phone": profile.phone or "",
                     "resume_text": tailored_resume.content if tailored_resume else self._latest_base_resume(session=session, user_id=application.user_id).content,
                 },
                 apply_url=result.apply_url,
@@ -437,6 +486,7 @@ class WorkflowService:
                 user_id=user.id,
                 full_name=user.full_name,
                 email=user.email,
+                phone=user.phone,
                 skills=parsed.skills,
                 target_locations=[search.location] if search.location else [],
                 base_resume=self._resume_artifact(base_resume),
@@ -475,6 +525,7 @@ class WorkflowService:
             user_id=user.id,
             full_name=user.full_name,
             email=user.email,
+            phone=user.phone,
             skills=parsed.skills,
             years_experience=3,
             target_locations=[],

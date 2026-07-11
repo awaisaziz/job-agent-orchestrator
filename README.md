@@ -23,29 +23,52 @@ git clone <repo-url>
 cd job-agent-orchestrator
 ```
 
-Copy the example env file and fill in your keys:
+Copy the example env file:
 
 ```bash
 cp backend/.env.example backend/.env
 ```
 
-Open `backend/.env` and set at minimum:
+**All keys are optional.** With **zero keys** the app already runs end-to-end and
+does a **real web search** for jobs across free public job boards (Remotive,
+Arbeitnow, RemoteOK) — no API key required. Resume tailoring falls back to a
+deterministic (non-LLM) output and applications are recorded locally. Add keys to
+`backend/.env` to turn on live AI features, then restart the backend:
 
 ```env
-# Required — real job listings (free tier: 200 req/month)
-JSEARCH_API_KEY=re_xxxxxxxxxx        # https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch
+# Live resume tailoring — set at least ONE (empty = deterministic fallback).
+# Dropping in ONLY OpenAI or Grok works even with the Anthropic default below —
+# the app auto-selects a matching model from whichever key you provide.
+OPENAI_API_KEY=sk-...
+GROK_API_KEY=xai-...
+ANTHROPIC_API_KEY=sk-ant-...
 
-# Required for email notifications and HR applications
+# Default model shown in the UI. Auto-overridden to match your configured key.
+LLM_DEFAULT_MODEL=claude-3-5-sonnet
+
+# OPTIONAL: JSearch (Google for Jobs) for precise location filtering. Empty =
+# free keyless web search across public job boards (the default).
+JSEARCH_API_KEY=...                  # https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch
+
+# Email notifications + HR email applications. Empty = notifications skipped.
 RESEND_API_KEY=re_xxxxxxxxxx         # https://resend.com/api-keys
 
-# Required for resume tailoring — set at least ONE of:
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
-GROK_API_KEY=xai-...
-
-# Set default model to match whichever key you provided, e.g.:
-LLM_DEFAULT_MODEL=gpt-4.1-mini
+# simulate = record applications locally (default, safe). live = real Playwright
+# auto-apply (email + simple forms; ATS/login/CAPTCHA pages are skipped).
+AUTO_APPLY_MODE=simulate
 ```
+
+The landing page shows a **Demo mode / Live mode** banner: job search is always
+live; the banner reflects whether AI resume tailoring and the other features are
+active based on the keys you set.
+
+### Job search & applying
+
+| Capability | No key | With key |
+|---|---|---|
+| **Job search** | Real web search (Remotive + Arbeitnow + RemoteOK) | JSearch / Google for Jobs (`JSEARCH_API_KEY`) for precise locations |
+| **Resume tailoring** | Deterministic, truth-preserving | Live LLM via OpenAI / Grok / Anthropic |
+| **Applying** | Recorded locally (`AUTO_APPLY_MODE=simulate`) | Real Playwright auto-apply (`AUTO_APPLY_MODE=live`): emails HR for email-apply pages, fills simple forms; ATS/login/CAPTCHA pages are safely skipped |
 
 ### 2. Backend
 
@@ -88,8 +111,8 @@ The app runs at **http://localhost:3000**
 ## How to Use
 
 1. **Open** `http://localhost:3000`
-2. **Fill in** your name, email, location, target job title, and upload your resume PDF
-3. **Search** — the agent pulls real job listings from JSearch (Google Jobs data)
+2. **Fill in** your name, email, phone, location (US, Canada, Europe, or Middle East), target job title, and upload your resume
+3. **Search** — live JSearch listings when a key is set, otherwise region-aware demo jobs
 4. **Review** matched jobs — each card shows a URL verification badge (✓ Verified / 🔒 Login required)
 5. **Select** the jobs you want to apply to (or click "Select all")
 6. **Prepare → Tailor → Approve → Submit** using the workspace controls

@@ -56,6 +56,7 @@ def intake_profile(payload: ProfileIntakeRequest) -> ProfileIntakeResponse:
                 resume_text=payload.resume_text,
                 location=payload.location,
                 full_name=payload.full_name,
+                phone=payload.phone,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc

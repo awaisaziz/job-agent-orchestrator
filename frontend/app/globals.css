@@ -136,6 +136,42 @@ select {
   font-size: 0.94rem;
 }
 
+.mode-banner {
+  margin-top: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+.mode-banner strong {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.mode-banner .mode-hint {
+  flex-basis: 100%;
+  color: var(--text-soft);
+  font-size: 0.85rem;
+}
+.mode-demo {
+  background: rgba(201, 122, 22, 0.1);
+  border-color: rgba(201, 122, 22, 0.28);
+}
+.mode-demo strong {
+  color: var(--warn);
+}
+.mode-live {
+  background: rgba(43, 122, 75, 0.1);
+  border-color: rgba(43, 122, 75, 0.28);
+}
+.mode-live strong {
+  color: var(--success);
+}
+
 .control-card,
 .panel,
 .metric-card {

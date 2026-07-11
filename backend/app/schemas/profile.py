@@ -11,6 +11,7 @@ class Profile(BaseModel):
     user_id: int = Field(gt=0)
     full_name: str
     email: EmailStr
+    phone: str | None = None
     skills: list[str] = Field(default_factory=list)
     years_experience: int = Field(ge=0)
     target_locations: list[str] = Field(default_factory=list)

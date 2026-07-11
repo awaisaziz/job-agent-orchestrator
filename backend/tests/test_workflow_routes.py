@@ -112,7 +112,10 @@ class WorkflowRouteTests(unittest.TestCase):
         results = search_jobs(position="backend engineer", location="Remote")
 
         self.assertGreaterEqual(len(results), 4)
-        self.assertTrue(any("OR search" in result.snippet or "Relevant search terms" in result.snippet for result in results))
+        # Search expands the requested title into related role variants, so the
+        # result set contains more than one distinct base title.
+        distinct_titles = {result.title for result in results}
+        self.assertGreater(len(distinct_titles), 1)
         self.assertTrue(all(len(result.skills) == len(set(skill.lower() for skill in result.skills)) for result in results))
 
 
