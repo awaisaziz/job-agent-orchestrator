@@ -4,13 +4,15 @@ from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.routes_config import router as config_router
+from app.api.v1.routes_extension import router as extension_router
 from app.api.v1.routes_pipeline import router as pipeline_router
 from app.api.v1.routes_workflow import router as workflow_router
 
 app = FastAPI(title="Job Agent Orchestrator", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
+    # Allow the local web app (localhost) and the Chrome extension (chrome-extension://<id>).
+    allow_origin_regex=r"(chrome-extension://.*)|(https?://(localhost|127\.0\.0\.1)(:\d+)?)",
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -18,6 +20,7 @@ app.add_middleware(
 app.include_router(pipeline_router, prefix="/api/v1")
 app.include_router(workflow_router, prefix="/api/v1")
 app.include_router(config_router, prefix="/api/v1")
+app.include_router(extension_router, prefix="/api/v1")
 
 
 @app.get("/")

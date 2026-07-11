@@ -11,6 +11,7 @@ __all__ = [
     "CredentialProfile",
     "Application",
     "ApplicationEvent",
+    "ExternalApplication",
     "EmailCredential",
     "EmailSyncState",
     "Log",
@@ -23,6 +24,7 @@ from app.db.models.cover_letter import CoverLetter
 from app.db.models.credential_profile import CredentialProfile
 from app.db.models.email_credential import EmailCredential
 from app.db.models.email_sync_state import EmailSyncState
+from app.db.models.external_application import ExternalApplication
 from app.db.models.job import Job
 from app.db.models.job_search import JobSearch
 from app.db.models.log import Log

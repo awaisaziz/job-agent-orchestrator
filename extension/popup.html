@@ -1,0 +1,53 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <span class="logo">🤖</span>
+      <div>
+        <h1>Applywise Agent</h1>
+        <p id="whoami" class="muted">Loading profile…</p>
+      </div>
+    </header>
+
+    <section class="config">
+      <label>Your email (from the web app)
+        <input id="email" type="email" placeholder="you@example.com" />
+      </label>
+      <label>Target job title
+        <input id="title" type="text" placeholder="e.g. Backend Engineer" />
+      </label>
+      <label class="row">
+        <span>When applying</span>
+        <select id="autonomy">
+          <option value="review">Ask me before each submit</option>
+          <option value="auto">Auto-submit safe forms</option>
+        </select>
+      </label>
+      <details>
+        <summary class="muted">Advanced</summary>
+        <label>Backend URL
+          <input id="backend" type="text" placeholder="http://localhost:8000" />
+        </label>
+      </details>
+    </section>
+
+    <div class="actions">
+      <button id="scan" class="primary">Scan open tabs</button>
+      <button id="apply" class="primary" disabled>Apply to selected</button>
+    </div>
+
+    <div id="notice" class="notice hidden"></div>
+    <ul id="tabs" class="tabs"></ul>
+
+    <footer>
+      <a id="dashboard" href="http://localhost:3000" target="_blank">Open dashboard ↗</a>
+      <span id="summary" class="muted"></span>
+    </footer>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
