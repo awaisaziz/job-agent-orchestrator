@@ -1,14 +1,22 @@
 """Backend entrypoint for the Job Agent Orchestrator API."""
 
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.api.v1.routes_config import router as config_router
 from app.api.v1.routes_extension import router as extension_router
 from app.api.v1.routes_pipeline import router as pipeline_router
 from app.api.v1.routes_workflow import router as workflow_router
+from app.services.extension.service import ProfileNotFoundError
 
 app = FastAPI(title="Job Agent Orchestrator", version="0.1.0")
+
+
+@app.exception_handler(ProfileNotFoundError)
+def _profile_not_found_handler(_request: Request, exc: ProfileNotFoundError) -> JSONResponse:
+    return JSONResponse(status_code=404, content={"detail": str(exc)})
+
 app.add_middleware(
     CORSMiddleware,
     # Allow the local web app (localhost) and the Chrome extension (chrome-extension://<id>).

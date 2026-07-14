@@ -35,12 +35,16 @@
   function scanPage() {
     const job = extractJob();
     const fields = extractFields();
-    const flags = {
+    return { job, fields, flags: computeFlags(), url: location.href };
+  }
+
+  // Safety flags used to decide what we must never auto-submit.
+  function computeFlags() {
+    return {
       captcha: hasCaptcha(),
       login: hasLoginWall(),
       fileUpload: !!document.querySelector('input[type="file"]'),
     };
-    return { job, fields, flags, url: location.href };
   }
 
   function extractJob() {
@@ -176,7 +180,7 @@
       }
     }
 
-    const flags = { captcha: hasCaptcha(), login: hasLoginWall(), fileUpload: !!document.querySelector('input[type="file"]') };
+    const flags = computeFlags();
     const unsafe = flags.captcha || flags.login; // never auto-submit these
     const canAutoSubmit = autonomy === "auto" && !unsafe;
 

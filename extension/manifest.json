@@ -4,12 +4,7 @@
   "version": "0.1.0",
   "description": "AI job-apply agent — scan your open job tabs and apply using your Applywise resume & profile.",
   "permissions": ["tabs", "scripting", "storage"],
-  "host_permissions": [
-    "http://localhost:8000/*",
-    "http://127.0.0.1:8000/*",
-    "http://*/*",
-    "https://*/*"
-  ],
+  "host_permissions": ["http://*/*", "https://*/*"],
   "background": { "service_worker": "background.js" },
   "action": {
     "default_popup": "popup.html",

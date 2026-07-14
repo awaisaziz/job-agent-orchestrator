@@ -118,7 +118,15 @@ def prepare_application(session: Session, req: PrepareApplicationRequest) -> Pre
     )
     llm_used = any("LLM provider used" in note for note in tailored.notes)
 
-    cover_letter, cover_from_llm = _cover_letter(profile, job, resume.content, model_name)
+    # Only spend an LLM round-trip on a cover letter when the page actually has a
+    # cover-letter field to fill — that's the only thing that consumes it.
+    needs_cover = any(
+        _has((field.label or field.name).lower(), "cover letter", "cover note")
+        for field in req.fields
+    )
+    cover_letter, cover_from_llm = (
+        _cover_letter(profile, job, resume.content, model_name) if needs_cover else ("", False)
+    )
     answers = _answer_fields(
         profile=profile, job=job, resume_text=resume.content,
         fields=req.fields, cover_letter=cover_letter, model_name=model_name,

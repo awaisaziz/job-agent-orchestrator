@@ -37,7 +37,11 @@ backend's headless automation can't (sites where you're already signed in).
 5. Click **Apply to selected**. The extension walks each tab: reads the posting,
    asks the backend to tailor + answer the fields, fills them, highlights them,
    and applies per your chosen mode.
-6. Everything it submits is recorded and shows up in your dashboard.
+6. Everything it submits is recorded in your Applywise backend. You can review the
+   records at `GET http://localhost:8000/api/v1/extension/applications?email=<you>`.
+   (Surfacing these external-site applications in the web dashboard at
+   `http://localhost:3000` is a planned enhancement — today the dashboard shows
+   applications made through the in-app search workflow.)
 
 ## What it does and does not do (honest limits)
 

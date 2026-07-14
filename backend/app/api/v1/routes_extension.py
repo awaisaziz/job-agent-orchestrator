@@ -7,7 +7,7 @@ what it applied to.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
 from app.db.base import Base
 from app.db.models import ExternalApplication, Resume, User  # noqa: F401 — ensure tables register
@@ -21,9 +21,11 @@ from app.schemas.extension import (
     RecordApplicationResponse,
 )
 from app.services.extension import service as extension_service
-from app.services.extension.service import ProfileNotFoundError
 
 router = APIRouter(prefix="/extension", tags=["extension"])
+
+# ProfileNotFoundError is translated to a 404 by an app-level exception handler
+# (see app.main), so route bodies can stay free of per-route try/except.
 
 
 def _init_schema() -> None:
@@ -34,30 +36,21 @@ def _init_schema() -> None:
 def get_profile(email: str) -> ExtensionProfileResponse:
     _init_schema()
     with SessionLocal() as session:
-        try:
-            return extension_service.get_profile_response(session, email)
-        except ProfileNotFoundError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return extension_service.get_profile_response(session, email)
 
 
 @router.post("/prepare-application", response_model=PrepareApplicationResponse)
 def prepare_application(payload: PrepareApplicationRequest) -> PrepareApplicationResponse:
     _init_schema()
     with SessionLocal() as session:
-        try:
-            return extension_service.prepare_application(session, payload)
-        except ProfileNotFoundError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return extension_service.prepare_application(session, payload)
 
 
 @router.post("/record-application", response_model=RecordApplicationResponse)
 def record_application(payload: RecordApplicationRequest) -> RecordApplicationResponse:
     _init_schema()
     with SessionLocal() as session:
-        try:
-            return extension_service.record_application(session, payload)
-        except ProfileNotFoundError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        return extension_service.record_application(session, payload)
 
 
 @router.get("/applications", response_model=ExtensionApplicationsResponse)
